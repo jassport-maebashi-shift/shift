@@ -69,16 +69,25 @@
   .day button .tm { font-size: 14px; color: var(--muted); }
   .day button:disabled { background: var(--grey-cell); border-color: var(--grey-cell); cursor: default; }
   .field { display: grid; gap: 4px; font-size: 15px; }
-  /* ログインの画面：店の名前・説明・Google のボタンを、どれも画面のまん中にそろえる（たたむ部品は使わない。利用者の指定 2026-11-20） */
+  /* ログインの画面：上に送信前の確認画面の見本（カレンダー）、下にログインのボタン。どれもまん中にそろえる（たたむ部品は使わない。2026-11-20） */
   .login { flex: 1; display: flex; flex-direction: column; }
-  .login .lmain { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 22px; padding: 32px 28px 40px; }
-  .login .lmain > * { width: 100%; max-width: 360px; }
-  .login .lname { font-size: 28px; font-weight: 700; letter-spacing: .04em; line-height: 1.3; }
-  .login .lead { font-size: 15px; color: var(--muted); margin-top: 8px; }
-  .login .note { font-size: 13px; color: var(--muted); margin-top: -10px; }
-  #login-msg:empty { display: none; }
+  .login .ltop { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 28px 20px 22px; background: var(--band); border-bottom: 1px solid var(--line); }
+  .login .lhead { text-align: center; display: grid; gap: 4px; }
+  .login .lname { font-size: 26px; font-weight: 700; letter-spacing: .06em; line-height: 1.3; color: var(--blue); }
+  .login .lead { font-size: 13px; color: var(--muted); }
+  .login .preview { width: 100%; max-width: 360px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .login .preview .ph { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px 10px; border-bottom: 1px solid var(--line); }
+  .login .preview .ph b { font-size: 15px; }
+  .login .preview .pb { padding: 10px 12px 12px; display: grid; gap: 10px; }
+  .login .preview .cal div { min-height: 34px; }
+  .login .preview .cal .h { min-height: 0; padding-bottom: 2px; }
+  .login .preview .stats { font-size: 12px; }
+  .login .lbottom { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px 20px 18px; text-align: center; }
+  .login .lbottom > * { width: 100%; max-width: 360px; }
+  .login .note { font-size: 14px; }
   .gbtn { min-height: 44px; display: flex; justify-content: center; }
-  .login .foot { padding: 0 28px 18px; font-size: 12px; text-align: center; }
+  #login-msg:empty { display: none; }
+  .login .foot { font-size: 12px; margin-top: 4px; }
   .login .foot a { color: var(--muted); }
   .field input { font: 18px var(--font); min-height: 48px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); width: 100%; }
   .field input.code { letter-spacing: .3em; font-variant-numeric: tabular-nums; }
@@ -485,14 +494,28 @@
   var googleReady = false;   // Google のボタンの準備ができたか
 
   /** ログインの画面。note があれば赤い知らせを出す */
+  /** ログインの画面に出す、送信前の確認画面の見本（2026年12月。1日は火曜。空欄は出勤できない日） */
+  var SAMPLE_CODES = ['', 'A', 'A1', '休', 'B', 'AG', '休', 'A', 'A', '', 'B', 'A1', '休', '休', 'A', 'AG', 'A', '', 'B', '休', '休',
+    'A1', 'A', '', 'B', 'A', '休', '休', 'A', 'A1', ''];
+
+  /** 見本のカレンダーと集計 */
+  function samplePreview() {
+    var conf = { lead: 2, ndays: SAMPLE_CODES.length, hol: [], closed: [] }, n = { work: 0, off: 0, none: 0 };
+    SAMPLE_CODES.forEach(function (c) { if (!c) n.none++; else if (c === '休') n.off++; else n.work++; });
+    return '<div class="preview" role="img" aria-label="送信内容の確認画面の見本"><div class="ph"><b>送信内容の確認</b><span class="sub">12月</span></div><div class="pb">' +
+      calendar(conf, function (d) { return { text: SAMPLE_CODES[d - 1], cls: dayClass(conf, d) }; }) +
+      '<dl class="stats"><dt>出勤</dt><dd>' + n.work + '日</dd><dt>休み</dt><dd>' + n.off + '日</dd><dt>出勤できない日</dt><dd>' + n.none + '日</dd></dl></div></div>';
+  }
+
+  /** ログインの画面。note があれば赤い知らせを出す */
   function renderLogin(note) {
     siteBar.hidden = true;
-    view.innerHTML = '<div class="login"><div class="lmain"><div><div class="lname" id="login-name">' + esc(siteTitle) + '</div>' +
-      '<div class="lead">シフトの希望を出したり、<br>決まったシフトを見たりできます。</div></div>' +
-      (note ? '<div class="msg err">' + esc(note) + '</div>' : '') +
+    view.innerHTML = '<div class="login"><div class="ltop"><div class="lhead"><div class="lname" id="login-name">' + esc(siteTitle) + '</div>' +
+      '<div class="lead">シフトの希望を出して、決まったシフトを見られます</div></div>' + samplePreview() + '</div>' +
+      '<div class="lbottom">' + (note ? '<div class="msg err">' + esc(note) + '</div>' : '') +
+      '<div class="note">お店に登録した Gmail でログインしてください</div>' +
       '<div id="gbtn" class="gbtn"></div><div id="login-msg"></div>' +
-      '<div class="note">お店に登録した Gmail で<br>ログインしてください。</div></div>' +
-      '<div class="foot"><a href="privacy.html">個人情報の扱い</a></div></div>';
+      '<div class="foot"><a href="privacy.html">個人情報の扱い</a></div></div></div>';
     showGoogleButton(0);
   }
 
