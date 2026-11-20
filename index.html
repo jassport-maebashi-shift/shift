@@ -31,10 +31,14 @@
   button { font-family: var(--font); }
   button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
   .app { max-width: 560px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
-  .site { position: sticky; top: 0; z-index: 2; background: var(--paper); border-bottom: 1px solid var(--line);
-    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 4px 12px; padding: 10px 16px 0; }
-  .site-name { font-weight: 700; padding-bottom: 8px; }
-  .tabs { display: flex; gap: 16px; }
+  /* 上の帯：1段目に店の名前と、右に本人の名前とログアウト。2段目にタブ（利用者の指定 2026-11-20） */
+  .site { position: sticky; top: 0; z-index: 2; background: var(--paper); border-bottom: 1px solid var(--line); display: grid; gap: 8px; padding: 10px 16px 0; }
+  .srow { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; }
+  .site-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .acct { display: flex; align-items: center; gap: 10px; flex: none; max-width: 60%; }
+  .acct-name { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .out { flex: none; min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .tabs { display: flex; gap: 20px; }
   .tabs button { border: 0; background: none; color: var(--muted); font-size: 15px; padding: 0 0 8px; border-bottom: 2px solid transparent; cursor: pointer; }
   .tabs button[aria-selected="true"] { color: var(--blue); border-bottom-color: var(--blue); font-weight: 700; }
   .view { flex: 1; display: flex; flex-direction: column; }
@@ -44,7 +48,6 @@
   .bottom.two { grid-template-columns: 1fr 2fr; }
   h2 { font-size: 18px; margin: 0; }
   .ttl { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .ttl .who { font-size: 15px; color: var(--muted); }
   .sub { font-size: 14px; color: var(--muted); }
   .pbtn { width: 100%; min-height: 48px; border: 0; border-radius: 6px; background: var(--blue); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
   .pbtn.ghost { background: var(--paper); color: var(--blue); border: 1px solid var(--blue); }
@@ -115,18 +118,28 @@
   .months { display: flex; flex-wrap: wrap; gap: 8px; }
   .months button { min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: 15px; cursor: pointer; }
   .months button[aria-pressed="true"] { border: 2px solid var(--blue); background: var(--blue-soft); font-weight: 700; }
+  /* 引っぱって読み直す：画面は動かさず、上の帯の下から、くるくるの丸が下りてくる */
+  .ptr { position: fixed; left: 50%; top: 0; z-index: 1; width: 36px; height: 36px; margin-left: -18px; border-radius: 50%; background: var(--paper);
+    box-shadow: 0 1px 6px rgba(0,0,0,.22); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transform: translateY(-44px); }
+  .ptr i { width: 18px; height: 18px; border: 2.5px solid var(--blue); border-top-color: transparent; border-radius: 50%; }
+  .ptr.spin i { animation: ptrspin .8s linear infinite; }
+  @keyframes ptrspin { to { transform: rotate(360deg); } }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <div class="app">
   <div class="site" id="site-bar" hidden>
-    <span class="site-name" id="site-name"></span>
-    <span class="tabs" role="tablist" id="tabs">
+    <div class="srow">
+      <span class="site-name" id="site-name"></span>
+      <span class="acct"><span class="acct-name" id="acct-name"></span><button type="button" class="out" id="logout">ログアウト</button></span>
+    </div>
+    <div class="tabs" role="tablist" id="tabs">
       <button type="button" role="tab" id="tab-req" aria-selected="true">シフト希望</button>
       <button type="button" role="tab" id="tab-mine" aria-selected="false">自分のシフト</button>
-    </span>
+    </div>
   </div>
+  <div class="ptr" id="ptr" aria-hidden="true"><i></i></div>
   <div class="view" id="view"><div class="center">読み込んでいます…</div></div>
 </div>
 <div class="shade" id="shade" hidden></div>
@@ -196,8 +209,8 @@
     return (w === 0 || conf.hol.indexOf(d) >= 0) ? 'sun' : (w === 6 ? 'sat' : '');
   }
 
-  /** 見出し：左に何の画面か、右に名前 */
-  function title(text, who) { return '<div class="ttl"><h2>' + esc(text) + '</h2><span class="who">' + esc(who) + '</span></div>'; }
+  /** 見出し（本人の名前は上の帯に出す） */
+  function title(text) { return '<div class="ttl"><h2>' + esc(text) + '</h2></div>'; }
 
   /** 月の数字（YYYYMM から M） */
   function monthNum(key) { return Number(String(key).slice(4)); }
@@ -271,7 +284,7 @@
     if (state.step === 'done') return renderDone();
     var o = h.open[state.cur], conf = o.config, c = counts(conf);
     var html = '<div class="top">' + monthButtons();
-    html += title(monthNum(conf.month) + '月のシフト希望', h.name);
+    html += title(monthNum(conf.month) + '月のシフト希望');
     if (conf.deadline) html += '<div class="sub">締め切り ' + esc(conf.deadline) + '</div>';
     html += '<dl class="stats"><dt>入力した日</dt><dd>' + c.filled + '／' + conf.ndays + '日</dd>' +
             '<dt>希望の勤務時間</dt><dd class="total">' + c.hours.toFixed(1) + ' 時間</dd></dl></div>';
@@ -342,7 +355,7 @@
   /** 締め切った月：「締め切りました」と、送った希望を暦で見せる（直せない） */
   function renderClosed() {
     var o = state.home.open[state.cur], conf = o.config;
-    var html = '<div class="top">' + monthButtons() + title(monthNum(conf.month) + '月のシフト希望', state.home.name) + '</div>' +
+    var html = '<div class="top">' + monthButtons() + title(monthNum(conf.month) + '月のシフト希望') + '</div>' +
                '<div class="body"><div class="msg">締め切りました。' + (o.sent ? '送った希望は次のとおりです。' : '') + '</div>';
     if (!o.sent) {
       html += '<div class="sub">この月の希望は、送られていませんでした。</div></div>';
@@ -395,7 +408,7 @@
 
   function renderConfirm() {
     var o = state.home.open[state.cur], conf = o.config, c = counts(conf);
-    var html = '<div class="top"><h2>送信内容の確認</h2><div class="sub">' + esc(state.home.name) + '　' + monthNum(conf.month) + '月</div></div><div class="body">';
+    var html = '<div class="top"><h2>送信内容の確認</h2><div class="sub">' + monthNum(conf.month) + '月</div></div><div class="body">';
     html += calendar(conf, function (d) {
       var closed = conf.closed.indexOf(d) >= 0, ch = choiceOf(conf, state.vals[d - 1]);
       return { text: closed ? '' : (ch ? ch.code : ''), cls: closed ? 'closed' : dayClass(conf, d) };
@@ -442,7 +455,6 @@
     var months = state.home.shiftMonths;
     if (!months.length) {
       view.innerHTML = '<div class="center">まだ公開されたシフトはありません。</div>';
-      addLogout();
       return;
     }
     if (state.mi < 0) state.mi = months.length - 1;
@@ -460,8 +472,8 @@
     s.days.forEach(function (x) { byDay[x.d] = x; });
     var html = '<div class="top"><div class="mnav"><button class="sbtn" type="button" id="prev"' + (state.mi === 0 ? ' disabled' : '') + '>前の月</button>' +
       '<h2>' + esc(s.title) + '</h2><button class="sbtn" type="button" id="next"' + (state.mi === months.length - 1 ? ' disabled' : '') + '>次の月</button></div>' +
-      '<div class="sub">' + esc(state.home.name) + (s.fixedAt ? '　' + esc(s.fixedAt) + ' 確定' : '') +
-      (s.changedAt ? '　' + esc(s.changedAt) + ' 変更' : '') + '</div></div><div class="body">';
+      (s.fixedAt || s.changedAt ? '<div class="sub">' + (s.fixedAt ? esc(s.fixedAt) + ' 確定' : '') +
+      (s.changedAt ? '　' + esc(s.changedAt) + ' 変更' : '') + '</div>' : '') + '</div><div class="body">';
     if (!s.days.some(function (x) { return x.time; })) html += '<div class="msg">この月は、勤務の日がありません。</div>';
     html += calendar(s, function (d) { return { text: byDay[d] ? byDay[d].code : '', cls: dayClass(s, d) }; });
     html += '<dl class="stats"><dt>出勤</dt><dd>' + s.work + '日</dd><dt>勤務時間</dt><dd>' + Number(s.hours).toFixed(1) + ' 時間</dd>' +
@@ -474,14 +486,12 @@
     view.innerHTML = html;
     document.getElementById('prev').onclick = function () { state.mi--; renderMine(); };
     document.getElementById('next').onclick = function () { state.mi++; renderMine(); };
-    addLogout();
   }
 
   // ---------------------------------------------------------------- ログイン（Google でログイン）
 
   var googleReady = false;   // Google のボタンの準備ができたか
 
-  /** ログインの画面。note があれば赤い知らせを出す */
   /** ログインの画面。note があれば赤い知らせを出す */
   function renderLogin(note) {
     siteBar.hidden = true;
@@ -523,23 +533,15 @@
     }).catch(function () { renderLogin('確かめられませんでした。電波の届く所で、もう一度ログインしてください。'); });
   }
 
-  /** 「自分のシフト」の下に、ログアウト（別のアカウントで入り直す）を出す */
-  function addLogout() {
-    var d = document.createElement('div');
-    d.className = 'body';
-    d.innerHTML = '<div class="links"><span class="sub">' + esc(data ? data.email : '') + '</span>' +
-      '<button type="button" class="link" id="logout">ログアウト</button></div>';
-    view.appendChild(d);
-    document.getElementById('logout').onclick = logout;
-  }
-
   /** ログアウト：この端末で覚えているログインを消して、ログインの画面に戻る */
   function logout() {
     clearLogin();
     if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
     state.home = null;
+    state.shifts = {};
     renderLogin('');
   }
+  document.getElementById('logout').onclick = logout;
 
   // ---------------------------------------------------------------- はじめ
 
@@ -549,20 +551,108 @@
     siteBar.hidden = false;
     view.innerHTML = '<div class="center">読み込んでいます…</div>';
     api('home').then(function (r) {
-    if (!r.ok) {
-      if (r.code === 'unregistered' || r.code === 'token') {
-        clearLogin();
-        renderLogin(r.message);
-      } else {
-        showError(r.message);
-      }
-      return;
+      if (!r.ok) { homeFailed(r); return; }
+      applyHome(r, false);
+    }).catch(function () { showError('読み込めませんでした。電波の届く所で、開き直してください。'); });
+  }
+
+  /** 読み込めなかったとき：ログインの期限切れ・未登録ならログインの画面へ、ほかは知らせる */
+  function homeFailed(r) {
+    if (r.code === 'unregistered' || r.code === 'token') {
+      clearLogin();
+      renderLogin(r.message);
+    } else {
+      showError(r.message);
     }
+  }
+
+  /** 送ってから変えた所があるか（読み直しで、入力中の内容を消さないため） */
+  function dirty() {
+    var o = state.home && state.home.open[state.cur];
+    if (!o || state.step !== 'list') return false;
+    var sent = o.sent ? o.sent.req : { codes: [], note: '' };
+    for (var d = 0; d < state.vals.length; d++) if ((state.vals[d] || '') !== (sent.codes[d] || '')) return true;
+    return (state.note || '') !== (sent.note || '');
+  }
+
+  /** 読み込んだ中身を画面に入れる。again（読み直し）のときは、見ている月と、送っていない入力をそのまま残す */
+  function applyHome(r, again) {
+    var keepMonth = again && state.home && state.home.open[state.cur] ? state.home.open[state.cur].config.month : null;
+    var keepInput = again && dirty(), vals = state.vals, note = state.note, step = state.step;
     if (r.site) setSiteName(r.site);
+    document.getElementById('acct-name').textContent = r.name || '';
     state.home = r;
-    if (r.open.length) startMonth(r.open.length - 1);
+    state.shifts = {};
+    var i = r.open.length - 1;
+    for (var k = 0; k < r.open.length; k++) if (r.open[k].config.month === keepMonth) i = k;
+    if (i >= 0) {
+      startMonth(i);
+      if (keepInput && r.open[i].config.month === keepMonth) { state.vals = vals; state.note = note; state.step = step; }
+    }
+    if (state.mi >= r.shiftMonths.length) state.mi = -1;
     render();
-  }).catch(function () { showError('読み込めませんでした。電波の届く所で、開き直してください。'); });
+  }
+
+  // ---------------------------------------------------------------- 引っぱって読み直す（利用者の指定 2026-11-20）
+  // 一番上で下へ引っぱると、画面は動かさずに、上の帯の下からくるくるの丸が下りてきて、離すと読み直す。
+
+  var ptr = document.getElementById('ptr');
+  var PULL_MAX = 90;      // 丸が下りる量の上限（px。指の動きの半分）
+  var PULL_GO = 64;       // これより下ろして離したら、読み直す
+  var PULL_REST = 16;     // 読み直している間、丸を止めておく位置
+  var PULL_MIN_MS = 500;  // 丸を出しておく最短の時間（一瞬で消えないように）
+  var pull = null, refreshing = false;
+
+  /** 引っぱり始めてよいか：ログイン済み、読み直し中でない、下から出る選択の画面が閉じている、一番上にいる、入力欄の中でない */
+  function canPull(e) {
+    return state.home && !refreshing && sheet.hidden && window.scrollY <= 0 && !siteBar.hidden &&
+      !(e.target.closest && e.target.closest('textarea, input, .sheet'));
+  }
+
+  /** 丸を d（px）だけ下ろした形にする */
+  function showPull(d) {
+    ptr.style.top = siteBar.getBoundingClientRect().bottom + 'px';
+    ptr.style.opacity = d > 0 ? String(Math.min(1, d / PULL_GO)) : '0';
+    ptr.style.transform = 'translateY(' + (d - 44) + 'px) rotate(' + Math.round(d * 4) + 'deg)';
+  }
+
+  document.addEventListener('touchstart', function (e) {
+    pull = canPull(e) ? { y0: e.touches[0].clientY, d: 0 } : null;
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (!pull) return;
+    var dy = e.touches[0].clientY - pull.y0;
+    if (dy <= 0 || window.scrollY > 0) { if (pull.d) showPull(0); pull.d = 0; return; }
+    e.preventDefault();                         // 画面そのものは動かさない
+    pull.d = Math.min(PULL_MAX, dy * 0.5);
+    showPull(pull.d);
+  }, { passive: false });
+  document.addEventListener('touchend', function () {
+    if (!pull) return;
+    var go = pull.d >= PULL_GO;
+    pull = null;
+    if (go) refreshAll(); else showPull(0);
+  });
+
+  /** 読み直す：希望の月と自分のシフトを、窓口から読み直す。見ている画面と、送っていない入力は残す */
+  function refreshAll() {
+    refreshing = true;
+    ptr.classList.add('spin');
+    ptr.style.transition = 'transform .15s';
+    ptr.style.opacity = '1';
+    ptr.style.transform = 'translateY(' + PULL_REST + 'px)';
+    var t0 = Date.now();
+    api('home').then(function (r) {
+      if (!r.ok) { homeFailed(r); return; }
+      applyHome(r, true);
+    }).catch(function () { /* つながらないときは、表示をそのままにする */ }).then(function () {
+      setTimeout(function () {
+        refreshing = false;
+        ptr.classList.remove('spin');
+        showPull(0);
+        setTimeout(function () { ptr.style.transition = ''; }, 200);
+      }, Math.max(0, PULL_MIN_MS - (Date.now() - t0)));
+    });
   }
 
   if (!data) api('info').then(function (r) { if (r.ok && r.site) setSiteName(r.site); }).catch(function () { /* 名前が出ないだけ */ });
