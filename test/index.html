@@ -146,8 +146,8 @@
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" hidden></div>
 <script>
 (function () {
-  // 公開用のページを作るとき（tools/build_page.js）に入る：{api: 窓口の URL, clientId: 「Google でログイン」の ID}
-  var SITE = {"api":"https://script.google.com/macros/s/AKfycby20RC_5qiIX5P3WG0hwDNPlnQbISsTWwGo229rmICwwxlAzcpVs1Ma42S-OMfQCeby/exec","clientId":"296951819519-3pefj3k6ubcm2hdsd9gmgbq5t03ohqqr.apps.googleusercontent.com"};
+  // 公開用のページを作るとき（tools/build_page.js）に入る：{api: 窓口の URL, clientId: 「Google でログイン」の ID, build: 版の印}
+  var SITE = {"api":"https://script.google.com/macros/s/AKfycby20RC_5qiIX5P3WG0hwDNPlnQbISsTWwGo229rmICwwxlAzcpVs1Ma42S-OMfQCeby/exec","clientId":"296951819519-3pefj3k6ubcm2hdsd9gmgbq5t03ohqqr.apps.googleusercontent.com","build":"3a3579b62c43"};
   // この端末でログインした結果：{email, exp, sig}（3か月）。まだなら null
   var LOGIN_KEY = 'shift-login';
   var data = loadLogin();
@@ -642,6 +642,7 @@
     ptr.style.opacity = '1';
     ptr.style.transform = 'translateY(' + PULL_REST + 'px)';
     var t0 = Date.now();
+    checkNewVersion();
     api('home').then(function (r) {
       if (!r.ok) { homeFailed(r); return; }
       applyHome(r, true);
@@ -655,6 +656,23 @@
     });
   }
 
+  // ---------------------------------------------------------------- 新しい版の読み込み
+
+  /** 公開している版の印（version.json）を、ブラウザの保存を使わずに読み、このページと違えば、新しいページを読み込み直す。
+   * 同じ印への読み込み直しは1回だけ（読み込み直しても古いままのときに、くり返さないように） */
+  function checkNewVersion() {
+    if (!SITE.build || !window.fetch) return;
+    fetch('version.json', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (!v || !v.build || v.build === SITE.build) return;
+      var tried = '';
+      try { tried = sessionStorage.getItem('shift-reload') || ''; } catch (e) { /* 何もしない */ }
+      if (tried === v.build) return;
+      try { sessionStorage.setItem('shift-reload', v.build); } catch (e) { /* 何もしない */ }
+      fetch(location.pathname, { cache: 'reload' }).then(function () { location.reload(); }, function () { location.reload(); });
+    }).catch(function () { /* 読めないときは、いまのページのまま */ });
+  }
+
+  checkNewVersion();
   if (!data) api('info').then(function (r) { if (r.ok && r.site) setSiteName(r.site); }).catch(function () { /* 名前が出ないだけ */ });
   start();
 })();
