@@ -85,8 +85,6 @@
   .links { display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .link { border: 0; background: none; padding: 6px 0; color: var(--blue); font-size: 15px; text-decoration: underline; cursor: pointer; }
   .field textarea { font: 16px var(--font); padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); resize: vertical; }
-  /* メモを書いている間だけ、ページの下に余白を足す（メモの欄を画面の上の方まで動かせるように。欄の位置は変えない） */
-  .view.typing .body { padding-bottom: 60vh; }
   .shade { position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,.3); z-index: 3; }
   .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
   .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 4; max-width: 560px; margin: 0 auto; max-height: 80vh; overflow-y: auto;
@@ -147,7 +145,7 @@
 <script>
 (function () {
   // 公開用のページを作るとき（tools/build_page.js）に入る：{api: 窓口の URL, clientId: 「Google でログイン」の ID, build: 版の印}
-  var SITE = {"api":"https://script.google.com/macros/s/AKfycbzUKeKa7LK6K7PGv6wY3FeiGp5j7q-9Jy4FPx7teOGvtJOv8C7c4ENGS9Zs1vZj6X1C/exec","clientId":"296951819519-3pefj3k6ubcm2hdsd9gmgbq5t03ohqqr.apps.googleusercontent.com","build":"16bde49ee446"};
+  var SITE = {"api":"https://script.google.com/macros/s/AKfycbzUKeKa7LK6K7PGv6wY3FeiGp5j7q-9Jy4FPx7teOGvtJOv8C7c4ENGS9Zs1vZj6X1C/exec","clientId":"296951819519-3pefj3k6ubcm2hdsd9gmgbq5t03ohqqr.apps.googleusercontent.com","build":"42f11bbe0ea0"};
   // この端末でログインした結果：{email, exp, sig}（3か月）。まだなら null
   var LOGIN_KEY = 'shift-login';
   var data = loadLogin();
@@ -314,25 +312,6 @@
     var note = document.getElementById('note');
     note.value = state.note;
     note.oninput = function () { state.note = note.value; };
-    // iPhone では、1回目にメモを押したときだけ、キーボードが入力欄を隠すことがある（2回目は大丈夫。利用者の確かめ 2026-11-19）。
-    // 指が触れた時点（キーボードが出る前）に、メモの欄が画面の上から4分の1の所に来るまでページを動かしておく
-    var lift = function () {
-      view.classList.add('typing');
-      var r = note.getBoundingClientRect(), want = window.innerHeight * 0.25;
-      if (r.top > want) window.scrollBy(0, r.top - want);
-    };
-    note.addEventListener('touchstart', lift, { passive: true });
-    note.addEventListener('mousedown', lift);
-    note.onblur = function () { view.classList.remove('typing'); };
-    // iPhone では、キーボードが出たあとに入力欄が隠れることがある。キーボードが出きってから、入力欄が見える位置へ動かす
-    note.onfocus = function () {
-      setTimeout(function () { note.scrollIntoView({ block: 'center' }); }, 350);
-    };
-    if (window.visualViewport) {
-      window.visualViewport.onresize = function () {
-        if (document.activeElement === note) note.scrollIntoView({ block: 'center' });
-      };
-    }
     bindMonthButtons();
     var hide = document.getElementById('hide-sent');
     if (hide) hide.onclick = function () { state.hideSent[conf.month] = true; keepScroll(renderRequest); };
